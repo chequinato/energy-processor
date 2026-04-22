@@ -2,14 +2,17 @@ import streamlit as st
 import requests
 import pandas as pd
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = "http://127.0.0.1:8000/api"
 
 st.title("⚡ Energy Dashboard")
 
 # -------------------------------
 # 📤 UPLOAD
 # -------------------------------
-uploaded_file = st.file_uploader("Faça upload do arquivo CSV ou Excel", type=["csv", "xlsx"])
+uploaded_file = st.file_uploader(
+    "Faça upload do arquivo CSV ou Excel",
+    type=["csv", "xlsx"]
+)
 
 if uploaded_file is not None:
     if st.button("📤 Processar arquivo"):
@@ -48,12 +51,15 @@ df = get_data()
 # -------------------------------
 if not df.empty:
 
+    # garante tipos corretos (isso resolve teu bug)
+    df["data"] = pd.to_datetime(df["data"], errors="coerce")
+
     # -------------------------------
     # 🔎 FILTROS
     # -------------------------------
     st.subheader("🔎 Filtros")
 
-    clientes = df["cliente"].unique()
+    clientes = df["cliente"].dropna().unique()
     cliente_selecionado = st.selectbox("Cliente", ["Todos"] + list(clientes))
 
     df_filtrado = df.copy()
@@ -84,10 +90,25 @@ if not df.empty:
     # 📈 GRÁFICO
     # -------------------------------
     st.subheader("📈 Consumo por Cliente")
-
     consumo_por_cliente = df_filtrado.groupby("cliente")["consumo_kwh"].sum()
-
     st.bar_chart(consumo_por_cliente)
+
+    # -------------------------------
+    # 📉 TENDÊNCIA (FIXED)
+    # -------------------------------
+    if df_filtrado["data"].notna().any():
+        st.subheader("📉 Tendência de Consumo")
+
+        df_trend = (
+            df_filtrado
+            .dropna(subset=["data"])
+            .sort_values("data")
+            .set_index("data")["consumo_kwh"]
+            .resample("D")
+            .sum()
+        )
+
+        st.line_chart(df_trend)
 
 else:
     st.warning("Nenhum dado encontrado 😢")

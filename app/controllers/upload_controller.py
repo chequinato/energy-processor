@@ -1,9 +1,11 @@
-from fastapi import APIRouter, UploadFile, File
-import pandas as pd
+from fastapi import APIRouter, UploadFile, File, Depends
+from sqlalchemy.orm import Session
 import os
 
-from app.core.database import SessionLocal
-from app.services.consumo_service import process_file
+from app.core.database import get_db
+from app.services.consumo_service import process_file, get_relatorios_service
+from app.utils.file_reader import read_file
+
 from app.models.consumo import Consumo
 from app.models.cliente import Cliente
 
@@ -16,31 +18,21 @@ UPLOAD_DIR = "data/uploads"
 # 📤 UPLOAD
 # -------------------------------
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
 
-    # garantir pasta
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     file_path = os.path.join(UPLOAD_DIR, file.filename)
 
-    # salvar arquivo
     with open(file_path, "wb") as f:
         f.write(await file.read())
 
-    # ler arquivo
-    if file.filename.endswith(".csv"):
-        df = pd.read_csv(file_path)
-    elif file.filename.endswith(".xlsx"):
-        df = pd.read_excel(file_path)
-    else:
-        return {"error": "Formato não suportado"}
+    df = read_file(file_path)
 
-    # 🔥 processar (SERVICE FAZ TUDO)
-    db = SessionLocal()
-    try:
-        metrics = process_file(db, df)
-    finally:
-        db.close()
+    metrics = process_file(db, df)
 
     return {
         "filename": file.filename,
@@ -51,26 +43,52 @@ async def upload_file(file: UploadFile = File(...)):
 
 
 # -------------------------------
-# 📊 GET CONSUMOS
+# 📊 CONSUMOS
 # -------------------------------
 @router.get("/consumos")
-def get_consumos():
-    db = SessionLocal()
+def get_consumos(db: Session = Depends(get_db)):
 
-    try:
-        dados = db.query(Consumo, Cliente).join(
-            Cliente, Consumo.cliente_id == Cliente.id
-        ).all()
+    dados = db.query(Consumo, Cliente).join(
+        Cliente, Consumo.cliente_id == Cliente.id
+    ).all()
 
-        return [
-            {
-                "cliente": cliente.nome,
-                "consumo_kwh": consumo.consumo_kwh,
-                "preco_mwh": consumo.preco_mwh,
-                "custo": consumo.custo
-            }
-            for consumo, cliente in dados
-        ]
+    return [
+        {
+            "cliente": cliente.nome,
+            "consumo_kwh": consumo.consumo_kwh,
+            "preco_mwh": consumo.preco_mwh,
+            "custo": consumo.custo,
+            "data": consumo.data
+        }
+        for consumo, cliente in dados
+    ]
 
-    finally:
-        db.close()
+
+# -------------------------------
+# 👥 CLIENTES
+# -------------------------------
+@router.get("/clientes")
+def get_clientes(db: Session = Depends(get_db)):
+
+    clientes = db.query(Cliente.nome).distinct().all()
+    return [c[0] for c in clientes]
+
+
+# -------------------------------
+# 📈 RELATÓRIOS
+# -------------------------------
+@router.get("/relatorios")
+def get_relatorios(db: Session = Depends(get_db)):
+    return get_relatorios_service(db)
+
+
+@router.get("/relatorios/resumo")
+def get_relatorios_resumo(db: Session = Depends(get_db)):
+
+    relatorios = get_relatorios_service(db)
+
+    return {
+        "total_clientes": len(relatorios),
+        "total_geral_consumo": sum(r["total_consumo"] for r in relatorios),
+        "total_geral_custo": sum(r["total_custo"] for r in relatorios)
+    }
