@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, File
 import pandas as pd
 import os
+from app.utils.validators import validate_columns, validate_data
 
 router = APIRouter()
 
@@ -25,6 +26,12 @@ async def upload_file(file: UploadFile = File(...)):
         df = pd.read_excel(file_path)
     else:
         return {"error": "Formato não suportado"}
+
+    # validar colunas
+    validate_columns(df)
+
+    # validar dados
+    validate_data(df)
 
     # retornar preview
     return {
