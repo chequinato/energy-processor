@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, File
 import pandas as pd
 import os
+from app.models.consumo import Consumo
 from app.utils.validators import validate_columns, validate_data
 from app.utils.calculations import calculate_metrics
 from app.core.database import SessionLocal
@@ -51,3 +52,21 @@ async def upload_file(file: UploadFile = File(...)):
         "rows_preview": df.head(5).to_dict(),
         "metrics": metrics
     }
+
+@router.get("/consumos")
+def get_consumos():
+    db = SessionLocal()
+
+    dados = db.query(Consumo).all()
+
+    db.close()
+
+    return [
+        {
+            "cliente": c.cliente,
+            "consumo_kwh": c.consumo_kwh,
+            "preco_mwh": c.preco_mwh,
+            "custo": c.custo
+        }
+        for c in dados
+    ]
