@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File
 import pandas as pd
 import os
 from app.models.consumo import Consumo
+from app.models.cliente import Cliente
 from app.utils.validators import validate_columns, validate_data
 from app.utils.calculations import calculate_metrics
 from app.core.database import SessionLocal
@@ -42,8 +43,10 @@ async def upload_file(file: UploadFile = File(...)):
 
     # salvar dados no banco
     db = SessionLocal()
-    save_consumos(db, df)
-    db.close()
+    try:
+        save_consumos(db, df) 
+    finally:
+        db.close()
 
     # retornar preview
     return {
@@ -53,20 +56,26 @@ async def upload_file(file: UploadFile = File(...)):
         "metrics": metrics
     }
 
+from app.models.consumo import Consumo
+from app.models.cliente import Cliente
+
 @router.get("/consumos")
 def get_consumos():
     db = SessionLocal()
 
-    dados = db.query(Consumo).all()
+    dados = db.query(Consumo, Cliente).join(
+        Cliente, Consumo.cliente_id == Cliente.id
+    ).all()
 
     db.close()
 
     return [
         {
-            "cliente": c.cliente,
-            "consumo_kwh": c.consumo_kwh,
-            "preco_mwh": c.preco_mwh,
-            "custo": c.custo
+            "cliente": cliente.nome,
+            "consumo_kwh": consumo.consumo_kwh,
+            "preco_mwh": consumo.preco_mwh,
+            "custo": consumo.custo
         }
-        for c in dados
+        for consumo, cliente in dados
     ]
+
