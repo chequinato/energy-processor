@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File
 import pandas as pd
 import os
 from app.utils.validators import validate_columns, validate_data
+from app.utils.calculations import calculate_metrics
 
 router = APIRouter()
 
@@ -33,9 +34,13 @@ async def upload_file(file: UploadFile = File(...)):
     # validar dados
     validate_data(df)
 
+    # calcular métricas
+    metrics = calculate_metrics(df)
+
     # retornar preview
     return {
         "filename": file.filename,
         "columns": list(df.columns),
-        "rows_preview": df.head(5).to_dict()
+        "rows_preview": df.head(5).to_dict(),
+        "metrics": metrics
     }
