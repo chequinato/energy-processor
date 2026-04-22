@@ -3,6 +3,8 @@ import pandas as pd
 import os
 from app.utils.validators import validate_columns, validate_data
 from app.utils.calculations import calculate_metrics
+from app.core.database import SessionLocal
+from app.repositories.consumo_repository import save_consumos
 
 router = APIRouter()
 
@@ -36,6 +38,11 @@ async def upload_file(file: UploadFile = File(...)):
 
     # calcular métricas
     metrics = calculate_metrics(df)
+
+    # salvar dados no banco
+    db = SessionLocal()
+    save_consumos(db, df)
+    db.close()
 
     # retornar preview
     return {
