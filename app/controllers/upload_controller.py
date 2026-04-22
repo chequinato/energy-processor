@@ -1,21 +1,24 @@
 from fastapi import APIRouter, UploadFile, File
 import pandas as pd
 import os
+
+from app.core.database import SessionLocal
+from app.services.consumo_service import process_file
 from app.models.consumo import Consumo
 from app.models.cliente import Cliente
-from app.utils.validators import validate_columns, validate_data
-from app.utils.calculations import calculate_metrics
-from app.core.database import SessionLocal
-from app.repositories.consumo_repository import save_consumos
 
 router = APIRouter()
 
 UPLOAD_DIR = "data/uploads"
 
+
+# -------------------------------
+# 📤 UPLOAD
+# -------------------------------
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    
-    # garantir que a pasta existe
+
+    # garantir pasta
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     file_path = os.path.join(UPLOAD_DIR, file.filename)
@@ -24,7 +27,7 @@ async def upload_file(file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         f.write(await file.read())
 
-    # ler com pandas
+    # ler arquivo
     if file.filename.endswith(".csv"):
         df = pd.read_csv(file_path)
     elif file.filename.endswith(".xlsx"):
@@ -32,23 +35,13 @@ async def upload_file(file: UploadFile = File(...)):
     else:
         return {"error": "Formato não suportado"}
 
-    # validar colunas
-    validate_columns(df)
-
-    # validar dados
-    validate_data(df)
-
-    # calcular métricas
-    metrics = calculate_metrics(df)
-
-    # salvar dados no banco
+    # 🔥 processar (SERVICE FAZ TUDO)
     db = SessionLocal()
     try:
-        save_consumos(db, df) 
+        metrics = process_file(db, df)
     finally:
         db.close()
 
-    # retornar preview
     return {
         "filename": file.filename,
         "columns": list(df.columns),
@@ -56,26 +49,28 @@ async def upload_file(file: UploadFile = File(...)):
         "metrics": metrics
     }
 
-from app.models.consumo import Consumo
-from app.models.cliente import Cliente
 
+# -------------------------------
+# 📊 GET CONSUMOS
+# -------------------------------
 @router.get("/consumos")
 def get_consumos():
     db = SessionLocal()
 
-    dados = db.query(Consumo, Cliente).join(
-        Cliente, Consumo.cliente_id == Cliente.id
-    ).all()
+    try:
+        dados = db.query(Consumo, Cliente).join(
+            Cliente, Consumo.cliente_id == Cliente.id
+        ).all()
 
-    db.close()
+        return [
+            {
+                "cliente": cliente.nome,
+                "consumo_kwh": consumo.consumo_kwh,
+                "preco_mwh": consumo.preco_mwh,
+                "custo": consumo.custo
+            }
+            for consumo, cliente in dados
+        ]
 
-    return [
-        {
-            "cliente": cliente.nome,
-            "consumo_kwh": consumo.consumo_kwh,
-            "preco_mwh": consumo.preco_mwh,
-            "custo": consumo.custo
-        }
-        for consumo, cliente in dados
-    ]
-
+    finally:
+        db.close()
