@@ -53,6 +53,7 @@ if not df.empty:
 
     # garante tipos corretos (isso resolve teu bug)
     df["data"] = pd.to_datetime(df["data"], errors="coerce")
+    df = df.dropna(subset=["data"])
 
     # -------------------------------
     # 🔎 FILTROS
@@ -101,10 +102,8 @@ if df_filtrado["data"].notna().any():
 
     df_filtrado = df_filtrado.copy()
 
-    # cria a coluna
-    df_filtrado["mes"] = df_filtrado["data"].dt.to_period("M").astype(str)
+    df_filtrado["mes"] = df_filtrado["data"].dt.to_period("M").dt.to_timestamp()
 
-    # agrupa
     df_trend = (
         df_filtrado
         .groupby("mes")["consumo_kwh"]
@@ -112,5 +111,4 @@ if df_filtrado["data"].notna().any():
         .sort_index()
     )
 
-    # gráfico TEM que estar dentro do if
     st.line_chart(df_trend)

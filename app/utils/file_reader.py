@@ -4,9 +4,6 @@ from typing import Tuple
 from pathlib import Path
 
 def read_file(file_path: str) -> pd.DataFrame:
-    """
-    Lê CSV ou Excel com error handling.
-    """
     path = Path(file_path)
     
     if not path.exists():
@@ -22,8 +19,13 @@ def read_file(file_path: str) -> pd.DataFrame:
         
         if df.empty:
             raise ValueError("Arquivo vazio")
-        
+
+        # 🔥 TRATAMENTO DE DATA
+        if "data" in df.columns:
+            df["data"] = pd.to_datetime(df["data"], errors="coerce", dayfirst=True)
+
         return df
+
     except Exception as e:
         raise ValueError(f"Erro ao ler arquivo: {str(e)}")
 

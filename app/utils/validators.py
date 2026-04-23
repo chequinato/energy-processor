@@ -8,6 +8,7 @@ def validate_columns(df):
         raise ValueError(f"Colunas obrigatórias faltando: {missing}")
     
 def validate_data(df):
+    validate_columns(df)
     # verificar valores nulos
     if df.isnull().any().any():
         raise ValueError("Existem valores nulos no arquivo")
