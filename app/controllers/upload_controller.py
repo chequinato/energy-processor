@@ -58,7 +58,7 @@ def get_consumos(db: Session = Depends(get_db)):
             "consumo_kwh": consumo.consumo_kwh,
             "preco_mwh": consumo.preco_mwh,
             "custo": consumo.custo,
-            "data": consumo.data
+            "data": consumo.data.isoformat() if consumo.data else None
         }
         for consumo, cliente in dados
     ]
