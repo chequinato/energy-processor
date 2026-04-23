@@ -93,22 +93,24 @@ if not df.empty:
     consumo_por_cliente = df_filtrado.groupby("cliente")["consumo_kwh"].sum()
     st.bar_chart(consumo_por_cliente)
 
-    # -------------------------------
-    # 📉 TENDÊNCIA (FIXED)
-    # -------------------------------
-    if df_filtrado["data"].notna().any():
-        st.subheader("📉 Tendência de Consumo")
+# -------------------------------
+# 📉 TENDÊNCIA
+# -------------------------------
+if df_filtrado["data"].notna().any():
+    st.subheader("📉 Tendência de Consumo")
 
-        df_trend = (
-            df_filtrado
-            .dropna(subset=["data"])
-            .sort_values("data")
-            .set_index("data")["consumo_kwh"]
-            .resample("D")
-            .sum()
-        )
+    df_filtrado = df_filtrado.copy()
 
-        st.line_chart(df_trend)
+    # cria a coluna
+    df_filtrado["mes"] = df_filtrado["data"].dt.to_period("M").astype(str)
 
-else:
-    st.warning("Nenhum dado encontrado 😢")
+    # agrupa
+    df_trend = (
+        df_filtrado
+        .groupby("mes")["consumo_kwh"]
+        .sum()
+        .sort_index()
+    )
+
+    # gráfico TEM que estar dentro do if
+    st.line_chart(df_trend)
