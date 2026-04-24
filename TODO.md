@@ -1,43 +1,63 @@
-# TODO: Complete Energy Processor Project
-Status: 🚀 In Progress (Approved by user)
 
-## Steps (sequential):
+📊 1. Filtros no dashboard
 
-### 1. Setup & Config [x]
-- Create `app/core/config.py` (env vars, DATABASE_URL, logging) ✅
-- Update `app/core/database.py` to use config.DATABASE_URL ✅
-- Update `requirements.txt` (+ python-dotenv) ✅ (already present)
+Hoje provavelmente tá tudo jogado.
 
-### 2. Schemas [x]
-- Create `app/schemas/__init__.py` (empty) ✅
-- Create `app/schemas/consumo.py` (Pydantic: ConsumoBase, Create, Response, Metrics) ✅
+Adiciona:
 
-### 3. Utils Enhancement [x]
-- Create `app/utils/file_reader.py` (read_csv/excel func) ✅
+filtro por cliente
+filtro por período (data)
+talvez por faixa de consumo
 
-### 4. Models/Repo Updates [x]
-- Add `data` field to `app/models/consumo.py` for trends ✅
-- Update `app/repositories/consumo_repository.py`: save with data, get_relatorios(db) ✅
-- Update `app/repositories/cliente_repository.py` if needed
+📈 2. Mais gráficos úteis
 
-### 5. Service & Controller [x]
-- `app/services/consumo_service.py`: Add get_relatorios(), logging ✅
-- `app/controllers/upload_controller.py`: Use schemas, file_reader, new endpoints (/clientes, /relatorios, /relatorios/resumo) ✅
+Você já usa gráfico, mas pode subir o nível:
 
-### 6. Dashboard Enhancements [x]
-- `dashboard/app.py`: Add date filter, line chart trends ✅
+consumo ao longo do tempo (linha)
+top clientes que mais consomem
+custo total por mês
 
-### 7. Scripts & Docs [x]
-- Create `scripts/seed.py` (load samples) ✅
-- Create `README.md` (full docs) ✅
 
-### 8. Test [x]
-- Run API, dashboard, seed, verify ✅
+📁 3. Histórico de uploads
 
-**All steps complete!** 🎉
+Hoje você manda arquivo e já era.
 
-Run:
-- uvicorn app.main:app --reload
-- streamlit run dashboard/app.py
-- python scripts/seed.py
+Adiciona:
 
+lista de uploads feitos
+data/hora
+botão de deletar
+
+🧠 4. Detecção de anomalia (🔥 diferencial)
+
+Tipo:
+
+“esse cliente consumiu MUITO mais que o normal”
+
+Simples de fazer:
+
+média histórica
+desvio padrão
+flag de anomalia
+
+🧾 5. Exportar relatório
+
+Botão:
+
+baixar CSV
+ou PDF com gráfico
+
+☁️ 6. Deploy na nuvem
+
+Pode usar:
+
+AWS
+ou Render
+ou Railway
+
+🤖 7. Insights automáticos
+
+Tipo:
+
+“Seu consumo aumentou 18% esse mês”
+“Cliente X é responsável por 40% do custo”
