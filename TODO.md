@@ -1,13 +1,3 @@
-📁 3. Histórico de uploads
-
-Hoje você manda arquivo e já era.
-
-Adiciona:
-
-lista de uploads feitos
-data/hora
-botão de deletar
-
 🧠 4. Detecção de anomalia (🔥 diferencial)
 
 Tipo:
