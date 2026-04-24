@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 import os
 
@@ -8,6 +8,8 @@ from app.utils.file_reader import read_file
 
 from app.models.consumo import Consumo
 from app.models.cliente import Cliente
+from datetime import datetime
+from app.models.upload import Upload
 
 router = APIRouter()
 
@@ -22,7 +24,6 @@ async def upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     file_path = os.path.join(UPLOAD_DIR, file.filename)
@@ -34,14 +35,21 @@ async def upload_file(
 
     metrics = process_file(db, df)
 
+    # 🔥 SALVAR UPLOAD NO BANCO
+    upload = Upload(
+        filename=file.filename,
+        created_at=datetime.utcnow()
+    )
+
+    db.add(upload)
+    db.commit()
+
     return {
         "filename": file.filename,
         "columns": list(df.columns),
         "rows_preview": df.head(5).to_dict(),
         "metrics": metrics
     }
-
-
 # -------------------------------
 # 📊 CONSUMOS
 # -------------------------------
@@ -92,3 +100,28 @@ def get_relatorios_resumo(db: Session = Depends(get_db)):
         "total_geral_consumo": sum(r["total_consumo"] for r in relatorios),
         "total_geral_custo": sum(r["total_custo"] for r in relatorios)
     }
+
+@router.get("/uploads")
+def list_uploads(db: Session = Depends(get_db)):
+    uploads = db.query(Upload).order_by(Upload.created_at.desc()).all()
+
+    return [
+        {
+            "id": u.id,
+            "filename": u.filename,
+            "created_at": u.created_at
+        }
+        for u in uploads
+    ]
+
+@router.delete("/uploads/{upload_id}")
+def delete_upload(upload_id: int, db: Session = Depends(get_db)):
+    upload = db.query(Upload).filter(Upload.id == upload_id).first()
+
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload não encontrado")
+
+    db.delete(upload)
+    db.commit()
+
+    return {"message": "Deletado com sucesso"}

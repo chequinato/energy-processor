@@ -51,6 +51,33 @@ with st.sidebar:
         st.rerun()
 
 
+st.divider()
+st.header("📁 Histórico de Uploads")
+
+@st.cache_data
+def get_uploads():
+    response = requests.get(f"{API_URL}/uploads")
+    if response.ok:
+        return response.json()
+    return []
+
+uploads = get_uploads()
+
+if uploads:
+    for u in uploads:
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.caption(f"📄 {u['filename']}")
+            st.caption(f"🕒 {u['created_at']}")
+
+        with col2:
+            if st.button("🗑️", key=f"del_{u['id']}"):
+                requests.delete(f"{API_URL}/uploads/{u['id']}")
+                st.cache_data.clear()
+                st.rerun()
+else:
+    st.caption("Nenhum upload ainda.")
 # -------------------------------
 # 📡 BUSCAR DADOS
 # -------------------------------
