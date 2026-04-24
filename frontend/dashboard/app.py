@@ -1,10 +1,137 @@
-
 import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from io import BytesIO
+
 API_URL = "http://backend:8000/api"
+
+# -------------------------------
+# 📄 GERAR PDF
+# -------------------------------
+def gerar_pdf(df):
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+    from reportlab.lib.styles import getSampleStyleSheet
+    from io import BytesIO
+    import plotly.express as px
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+
+    elementos = []
+
+    # -------------------------------
+    # 🧾 TÍTULO
+    # -------------------------------
+    elementos.append(Paragraph("📊 Relatório de Consumo de Energia", styles["Title"]))
+    elementos.append(Spacer(1, 16))
+
+    total_consumo = df["consumo_kwh"].sum()
+    total_custo = df["custo"].sum()
+
+    elementos.append(Paragraph(f"<b>Consumo total:</b> {total_consumo:.0f} kWh", styles["Normal"]))
+    elementos.append(Paragraph(f"<b>Custo total:</b> R$ {total_custo:.2f}", styles["Normal"]))
+
+    elementos.append(Spacer(1, 20))
+
+    # -------------------------------
+    # 📈 CONSUMO POR CLIENTE
+    # -------------------------------
+    elementos.append(Paragraph("📈 Consumo por Cliente", styles["Heading2"]))
+    elementos.append(Spacer(1, 10))
+
+    consumo_cliente = (
+        df.groupby("cliente")["consumo_kwh"]
+        .sum()
+        .reset_index()
+        .sort_values(by="consumo_kwh", ascending=False)
+    )
+
+    fig_bar = px.bar(consumo_cliente, x="cliente", y="consumo_kwh")
+
+    img1 = BytesIO()
+    fig_bar.write_image(img1, format="png")
+    img1.seek(0)
+
+    elementos.append(Image(img1, width=450, height=260))
+    elementos.append(Spacer(1, 20))
+
+    # -------------------------------
+    # 📉 TENDÊNCIA
+    # -------------------------------
+    elementos.append(Paragraph("📉 Tendência de Consumo", styles["Heading2"]))
+    elementos.append(Spacer(1, 10))
+
+    df_trend = df.copy()
+    df_trend["mes"] = df_trend["data"].dt.to_period("M").dt.to_timestamp()
+
+    df_trend = (
+        df_trend.groupby("mes")["consumo_kwh"]
+        .sum()
+        .reset_index()
+    )
+
+    fig_line = px.line(df_trend, x="mes", y="consumo_kwh", markers=True)
+
+    img2 = BytesIO()
+    fig_line.write_image(img2, format="png")
+    img2.seek(0)
+
+    elementos.append(Image(img2, width=450, height=260))
+    elementos.append(Spacer(1, 20))
+
+    # -------------------------------
+    # 💰 CUSTO POR MÊS (NOVO 🔥)
+    # -------------------------------
+    elementos.append(Paragraph("💰 Custo por mês", styles["Heading2"]))
+    elementos.append(Spacer(1, 10))
+
+    df_custo = df.copy()
+    df_custo["mes"] = df_custo["data"].dt.to_period("M").dt.to_timestamp()
+
+    df_custo = (
+        df_custo.groupby("mes")["custo"]
+        .sum()
+        .reset_index()
+    )
+
+    fig_custo = px.line(df_custo, x="mes", y="custo", markers=True)
+
+    img3 = BytesIO()
+    fig_custo.write_image(img3, format="png")
+    img3.seek(0)
+
+    elementos.append(Image(img3, width=450, height=260))
+    elementos.append(Spacer(1, 20))
+
+    # -------------------------------
+    # 🏆 TOP CLIENTES
+    # -------------------------------
+    elementos.append(Paragraph("🏆 Top 5 clientes", styles["Heading2"]))
+    elementos.append(Spacer(1, 10))
+
+    top_clientes = (
+        df.groupby("cliente")["consumo_kwh"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(5)
+    )
+
+    for cliente, consumo in top_clientes.items():
+        elementos.append(Paragraph(f"{cliente}: {consumo:.0f} kWh", styles["Normal"]))
+
+    # -------------------------------
+    # FINALIZA
+    # -------------------------------
+    doc.build(elementos)
+
+    buffer.seek(0)
+    return buffer
+
 
 # -------------------------------
 # ⚙️ CONFIG
@@ -46,11 +173,14 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-    if st.button("🧹 Limpar dados"):
+    if st.button("🧹 Limpar filtros"):
         st.session_state.clear()
         st.rerun()
 
 
+# -------------------------------
+# 📁 HISTÓRICO DE UPLOADS
+# -------------------------------
 st.divider()
 st.header("📁 Histórico de Uploads")
 
@@ -78,6 +208,8 @@ if uploads:
                 st.rerun()
 else:
     st.caption("Nenhum upload ainda.")
+
+
 # -------------------------------
 # 📡 BUSCAR DADOS
 # -------------------------------
@@ -110,13 +242,13 @@ if not df.empty:
             "Clientes",
             options=clientes,
             default=clientes,
-            key="clientes"  # 🔥 ajuda a evitar bug de estado
+            key="clientes"
         )
 
         datas = st.date_input(
             "Período",
             value=(df["data"].min(), df["data"].max()),
-            key="date_range"  # 🔥 ajuda a evitar bug de estado
+            key="date_range"
         )
 
         if isinstance(datas, tuple) and len(datas) == 2:
@@ -132,7 +264,7 @@ if not df.empty:
             min_value=min_consumo,
             max_value=max_consumo,
             value=(min_consumo, max_consumo),
-            key="faixa_consumo"  # 🔥 ajuda a evitar bug de estado
+            key="faixa_consumo"
         )
 
     # -------------------------------
@@ -144,7 +276,7 @@ if not df.empty:
         df_filtrado["cliente"].isin(clientes_selecionados)
     ]
 
-    if data_inicio is not None and data_fim is not None:
+    if data_inicio and data_fim:
         df_filtrado = df_filtrado[
             (df_filtrado["data"] >= pd.to_datetime(data_inicio)) &
             (df_filtrado["data"] <= pd.to_datetime(data_fim))
@@ -171,6 +303,20 @@ if not df.empty:
     col2.metric("💰 Custo Total", f"R$ {total_custo:.2f}")
 
     st.caption(f"{len(df_filtrado)} registros encontrados")
+
+    st.divider()
+
+    # -------------------------------
+    # 📄 PDF
+    # -------------------------------
+    pdf = gerar_pdf(df_filtrado)
+
+    st.download_button(
+        label="📄 Baixar relatório PDF",
+        data=pdf,
+        file_name="relatorio_energia.pdf",
+        mime="application/pdf"
+    )
 
     st.divider()
 
