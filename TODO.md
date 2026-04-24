@@ -1,23 +1,3 @@
-
-📊 1. Filtros no dashboard
-
-Hoje provavelmente tá tudo jogado.
-
-Adiciona:
-
-filtro por cliente
-filtro por período (data)
-talvez por faixa de consumo
-
-📈 2. Mais gráficos úteis
-
-Você já usa gráfico, mas pode subir o nível:
-
-consumo ao longo do tempo (linha)
-top clientes que mais consomem
-custo total por mês
-
-
 📁 3. Histórico de uploads
 
 Hoje você manda arquivo e já era.
