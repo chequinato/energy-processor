@@ -355,6 +355,39 @@ def get_relatorios(db: Session):
             for nome, total, custo, media in results]
 ```
 
+## ⚡ Cache com Redis
+
+O projeto utiliza **Redis** para otimizar a performance dos endpoints de relatórios.
+
+### 🔹 Como funciona
+
+- Os endpoints abaixo são cacheados:
+  - `/api/relatorios`
+  - `/api/relatorios/resumo`
+
+- Na primeira requisição:
+  - Os dados são calculados no backend
+  - Armazenados no Redis (TTL: 60s)
+
+- Nas próximas requisições:
+  - Os dados são retornados diretamente do cache (mais rápido ⚡)
+
+### 🔄 Invalidação de Cache
+
+O cache é automaticamente limpo quando:
+
+- Um novo arquivo é enviado (`POST /api/upload`)
+- Um upload é removido (`DELETE /api/uploads/{id}`)
+
+### 🐳 Redis no Docker
+
+O Redis roda como um serviço no `docker-compose`:
+
+```yaml
+redis:
+  image: redis:7
+  ports:
+    - "6379:6379"
 ---
 
 ## 🧪 Conceitos Python Utilizados
