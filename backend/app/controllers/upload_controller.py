@@ -10,6 +10,9 @@ from app.models.consumo import Consumo
 from app.models.cliente import Cliente
 from datetime import datetime
 from app.models.upload import Upload
+import json
+from app.core.redis_client import redis_client
+
 
 router = APIRouter()
 
@@ -43,6 +46,9 @@ async def upload_file(
 
     db.add(upload)
     db.commit()
+
+    redis_client.delete("relatorios")
+    redis_client.delete("relatorios_resumo")
 
     return {
         "filename": file.filename,
@@ -87,19 +93,39 @@ def get_clientes(db: Session = Depends(get_db)):
 # -------------------------------
 @router.get("/relatorios")
 def get_relatorios(db: Session = Depends(get_db)):
-    return get_relatorios_service(db)
+    cache_key = "relatorios"
+
+    cached = redis_client.get(cache_key)
+    if cached:
+        print("VEIO DO CACHE")
+        return json.loads(cached)
+
+    data = get_relatorios_service(db)
+    redis_client.setex(cache_key, 60, json.dumps(data))
+
+    return data
 
 
 @router.get("/relatorios/resumo")
 def get_relatorios_resumo(db: Session = Depends(get_db)):
 
+    cache_key = "relatorios_resumo"
+
+    cached = redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+
     relatorios = get_relatorios_service(db)
 
-    return {
+    data = {
         "total_clientes": len(relatorios),
         "total_geral_consumo": sum(r["total_consumo"] for r in relatorios),
         "total_geral_custo": sum(r["total_custo"] for r in relatorios)
     }
+
+    redis_client.setex(cache_key, 60, json.dumps(data))
+
+    return data
 
 @router.get("/uploads")
 def list_uploads(db: Session = Depends(get_db)):
@@ -116,6 +142,7 @@ def list_uploads(db: Session = Depends(get_db)):
 
 @router.delete("/uploads/{upload_id}")
 def delete_upload(upload_id: int, db: Session = Depends(get_db)):
+
     upload = db.query(Upload).filter(Upload.id == upload_id).first()
 
     if not upload:
@@ -123,5 +150,9 @@ def delete_upload(upload_id: int, db: Session = Depends(get_db)):
 
     db.delete(upload)
     db.commit()
+
+    # 🔥 limpa cache
+    redis_client.delete("relatorios")
+    redis_client.delete("relatorios_resumo")
 
     return {"message": "Deletado com sucesso"}
