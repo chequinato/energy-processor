@@ -27,7 +27,7 @@ jobs:
       - name: Teste básico de import
         run: |
           cd backend
-          python -c "import app.main; print('backend ok 🔥')"
+          python -c "import main; print('backend OK 🔥')"
 
   docker:
     runs-on: ubuntu-latest
