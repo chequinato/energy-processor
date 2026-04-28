@@ -1,0 +1,47 @@
+
+name: CI - Energy Data Processor
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências backend
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Teste básico de import
+        run: |
+          cd backend
+          python -c "import app.main; print('backend ok 🔥')"
+
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Build Docker Compose
+        run: |
+          docker compose build
+
+      - name: Subir containers (teste rápido)
+        run: |
+          docker compose up -d
+          sleep 10
+          docker compose ps

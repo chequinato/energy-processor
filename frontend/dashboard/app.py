@@ -27,7 +27,7 @@ def gerar_pdf(df):
     # -------------------------------
     # 🧾 TÍTULO
     # -------------------------------
-    elementos.append(Paragraph("📊 Relatório de Consumo de Energia", styles["Title"]))
+    elementos.append(Paragraph("📊 Relatório  - Consumo de Energia", styles["Title"]))
     elementos.append(Spacer(1, 16))
 
     total_consumo = df["consumo_kwh"].sum()
