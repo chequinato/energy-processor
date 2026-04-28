@@ -291,6 +291,16 @@ if not df.empty:
         st.warning("Nenhum dado encontrado com esses filtros.")
         st.stop()
 
+    # Detecção de anomalias
+    df_anomalia = df_filtrado.copy()
+
+    df_anomalia["media_cliente"] = df_anomalia.groupby("cliente")["consumo_kwh"].transform("mean")
+    df_anomalia["std_cliente"] = df_anomalia.groupby("cliente")["consumo_kwh"].transform("std")
+
+    df_anomalia["limite"] = df_anomalia["media_cliente"] + 2 * df_anomalia["std_cliente"]
+
+    df_anomalia["is_anomaly"] = df_anomalia["consumo_kwh"] > df_anomalia["limite"]
+
     # -------------------------------
     # ⚡ MÉTRICAS
     # -------------------------------
@@ -307,6 +317,64 @@ if not df.empty:
     st.divider()
 
     # -------------------------------
+    # 🧠 INSIGHTS AUTOMÁTICOS
+    # -------------------------------
+    st.divider()
+    st.subheader("🧠 Insights")
+
+    insights = []
+
+    # 📈 crescimento mês a mês
+    df_mes = df_filtrado.copy()
+    df_mes["mes"] = df_mes["data"].dt.to_period("M").dt.to_timestamp()
+
+    df_mes = df_mes.groupby("mes")["consumo_kwh"].sum().reset_index()
+
+    if len(df_mes) >= 2:
+        ultimo = df_mes.iloc[-1]["consumo_kwh"]
+        anterior = df_mes.iloc[-2]["consumo_kwh"]
+
+        if anterior > 0:
+            variacao = ((ultimo - anterior) / anterior) * 100
+
+            insights.append(f"Consumo variou {variacao:.1f}% em relação ao mês anterior")
+
+    # 🏆 concentração de clientes
+    top_clientes = (
+        df_filtrado.groupby("cliente")["custo"]
+        .sum()
+        .sort_values(ascending=False)
+    )
+
+    top3 = top_clientes.head(3).sum()
+    total = top_clientes.sum()
+
+    if total > 0:
+        percentual = (top3 / total) * 100
+        insights.append(f"Top 3 clientes representam {percentual:.1f}% do custo total")
+
+    # 🚨 quantidade de anomalias
+    qtd_anomalias = df_anomalia["is_anomaly"].sum()
+    if qtd_anomalias > 0:
+        insights.append(f"{qtd_anomalias} consumos fora do padrão detectados")
+
+    # render
+    for i in insights:
+        st.info(i)
+
+    # Cliente que mais aumentou consumo
+    cliente_aumento = df_filtrado.groupby("cliente")["consumo_kwh"].sum().idxmax()
+    st.info(f"Cliente com maior consumo: {cliente_aumento}")
+
+    # Cliente que mais reduziu consumo
+    cliente_reducao = df_filtrado.groupby("cliente")["consumo_kwh"].sum().idxmin()
+    st.info(f"Cliente com menor consumo: {cliente_reducao}")
+
+    # Custo médio por kWh
+    custo_medio = df_filtrado["custo"].sum() / df_filtrado["consumo_kwh"].sum()
+    st.info(f"Custo médio por kWh: R$ {custo_medio:.2f}")
+
+    # -------------------------------
     # 📄 PDF
     # -------------------------------
     pdf = gerar_pdf(df_filtrado)
@@ -320,84 +388,148 @@ if not df.empty:
 
     st.divider()
 
-    # -------------------------------
-    # 📊 GRÁFICOS
-    # -------------------------------
+  # -------------------------------
+# 📊 GRÁFICOS
+# -------------------------------
 
-    # 🔹 LINHA 1
-    col1, col2 = st.columns(2)
+# 🔹 LINHA 1
+col1, col2 = st.columns(2)
 
-    with col1:
-        st.subheader("📈 Consumo por Cliente")
+with col1:
+    st.subheader("📈 Consumo por Cliente")
 
-        consumo_cliente = (
-            df_filtrado
-            .groupby("cliente")["consumo_kwh"]
-            .sum()
-            .reset_index()
-            .sort_values(by="consumo_kwh", ascending=False)
-        )
+    consumo_cliente = (
+        df_filtrado
+        .groupby("cliente")["consumo_kwh"]
+        .sum()
+        .reset_index()
+        .sort_values(by="consumo_kwh", ascending=False)
+    )
 
-        fig_bar = px.bar(consumo_cliente, x="cliente", y="consumo_kwh")
-        st.plotly_chart(fig_bar, width="stretch")
+    fig_bar = px.bar(consumo_cliente, x="cliente", y="consumo_kwh")
+    st.plotly_chart(fig_bar, use_container_width=True)
 
-    with col2:
-        st.subheader("🏆 Top Clientes")
+with col2:
+    st.subheader("🏆 Top Clientes")
 
-        top_clientes = consumo_cliente.head(5)
+    top_clientes = consumo_cliente.head(5)
 
-        fig_top = px.bar(
-            top_clientes,
-            x="consumo_kwh",
-            y="cliente",
-            orientation="h"
-        )
+    fig_top = px.bar(
+        top_clientes,
+        x="consumo_kwh",
+        y="cliente",
+        orientation="h"
+    )
 
-        st.plotly_chart(fig_top, width="stretch")
+    st.plotly_chart(fig_top, use_container_width=True)
 
-    st.divider()
+st.divider()
 
-    # 🔹 LINHA 2
-    col1, col2 = st.columns(2)
+# 🔹 LINHA 2
+col1, col2 = st.columns(2)
 
-    with col1:
-        st.subheader("📉 Tendência de Consumo")
+with col1:
+    st.subheader("📉 Tendência de Consumo")
 
-        df_trend = df_filtrado.copy()
-        df_trend["mes"] = df_trend["data"].dt.to_period("M").dt.to_timestamp()
+    df_trend = df_filtrado.copy()
+    df_trend["mes"] = df_trend["data"].dt.to_period("M").dt.to_timestamp()
 
-        df_trend = (
-            df_trend
-            .groupby("mes")["consumo_kwh"]
-            .sum()
-            .reset_index()
-        )
+    df_trend = (
+        df_trend
+        .groupby("mes")["consumo_kwh"]
+        .sum()
+        .reset_index()
+    )
 
-        fig_line = px.line(df_trend, x="mes", y="consumo_kwh", markers=True)
-        st.plotly_chart(fig_line, width="stretch")
+    df_trend_full = df_anomalia.copy()
+    df_trend_full["mes"] = df_trend_full["data"].dt.to_period("M").dt.to_timestamp()
 
-    with col2:
-        st.subheader("💰 Custo por mês")
+    fig_line = px.line(df_trend, x="mes", y="consumo_kwh", markers=True)
 
-        df_custo = df_filtrado.copy()
-        df_custo["mes"] = df_custo["data"].dt.to_period("M").dt.to_timestamp()
+    anomalias = df_trend_full[df_trend_full["is_anomaly"] == True]
 
-        df_custo = (
-            df_custo
-            .groupby("mes")["custo"]
-            .sum()
-            .reset_index()
-        )
+    fig_line.add_scatter(
+        x=anomalias["mes"],
+        y=anomalias["consumo_kwh"],
+        mode="markers",
+        name="Anomalias"
+    )
 
-        fig_custo = px.line(df_custo, x="mes", y="custo", markers=True)
-        st.plotly_chart(fig_custo, width="stretch")
+    maior_consumidor = df_filtrado.groupby("cliente")["consumo_kwh"].sum().idxmax()
 
-    # -------------------------------
-    # 📋 TABELA
-    # -------------------------------
-    st.divider()
-    st.subheader("📋 Dados")
-    st.dataframe(df_filtrado, use_container_width=True)
+    fig_line.add_annotation(
+        x=df_trend["mes"].iloc[-1],
+        y=df_trend["consumo_kwh"].iloc[-1],
+        text=f"Maior consumidor: {maior_consumidor}",
+        showarrow=True,
+        arrowhead=1
+    )
 
-else:
-    st.warning("Nenhum dado disponível. Faça upload de um arquivo.")
+    st.plotly_chart(fig_line, use_container_width=True)
+
+with col2:
+    st.subheader("💰 Custo por mês")
+
+    df_custo = df_filtrado.copy()
+    df_custo["mes"] = df_custo["data"].dt.to_period("M").dt.to_timestamp()
+
+    df_custo = (
+        df_custo
+        .groupby("mes")["custo"]
+        .sum()
+        .reset_index()
+    )
+
+    fig_custo = px.line(df_custo, x="mes", y="custo", markers=True)
+    st.plotly_chart(fig_custo, use_container_width=True)
+
+st.divider()
+
+# 🔹 LINHA 3 (🔥 AQUI É O QUE VOCÊ QUERIA)
+col3, col4 = st.columns([2, 1])  # heatmap maior que o pie
+
+with col3:
+    st.subheader("🔥 Heatmap Consumo por Cliente/Mês")
+
+    df_heatmap = df_filtrado.copy()
+    df_heatmap["mes"] = df_heatmap["data"].dt.to_period("M").dt.to_timestamp()
+
+    df_heatmap = (
+        df_heatmap
+        .groupby(["cliente", "mes"])["consumo_kwh"]
+        .sum()
+        .reset_index()
+    )
+
+    fig_heatmap = px.density_heatmap(
+        df_heatmap,
+        x="mes",
+        y="cliente",
+        z="consumo_kwh",
+        color_continuous_scale="Viridis"
+    )
+
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+
+with col4:
+    st.subheader("🔥 Participação no custo por cliente")
+
+    df_pie = df_filtrado.copy()
+    df_pie = (
+        df_pie
+        .groupby("cliente")["custo"]
+        .sum()
+        .reset_index()
+    )
+
+    fig_pie = px.pie(df_pie, names="cliente", values="custo")
+
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+
+# -------------------------------
+# 📋 TABELA
+# -------------------------------
+st.divider()
+st.subheader("📋 Dados")
+st.dataframe(df_filtrado, use_container_width=True)
