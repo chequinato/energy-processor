@@ -8,6 +8,8 @@ services:
     volumes:
       - ./energy.db:/app/energy.db
       - ./data:/app/data
+    depends_on:
+      - redis
 
   frontend:
     build: ./frontend/dashboard
@@ -15,3 +17,9 @@ services:
       - "8501:8501"
     depends_on:
       - backend
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+  
