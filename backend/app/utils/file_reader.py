@@ -23,6 +23,12 @@ def read_file(file_path: str) -> pd.DataFrame:
         # 🔥 TRATAMENTO DE DATA
         if "data" in df.columns:
             df["data"] = pd.to_datetime(df["data"], errors="coerce", dayfirst=True)
+            
+            # Preencher datas nulas com data atual
+            if df["data"].isnull().any():
+                null_count = df["data"].isnull().sum()
+                df["data"] = df["data"].fillna(pd.Timestamp.now())
+                print(f"Preenchidas {null_count} datas nulas com data atual")
 
         return df
 
