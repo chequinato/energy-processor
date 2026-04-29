@@ -302,17 +302,47 @@ if not df.empty:
     df_anomalia["is_anomaly"] = df_anomalia["consumo_kwh"] > df_anomalia["limite"]
 
     # -------------------------------
-    # ⚡ MÉTRICAS
+    # ⚡ KPIs AVANÇADOS
     # -------------------------------
     total_consumo = df_filtrado["consumo_kwh"].sum()
     total_custo = df_filtrado["custo"].sum()
+    num_clientes = df_filtrado["cliente"].nunique()
+    
+    # 📊 KPIs adicionais
+    consumo_medio_cliente = total_consumo / num_clientes if num_clientes > 0 else 0
+    custo_medio_cliente = total_custo / num_clientes if num_clientes > 0 else 0
+    preco_medio_kwh = (total_custo / total_consumo) if total_consumo > 0 else 0
+    
+    # 📅 Análise temporal
+    df_filtrado["mes"] = df_filtrado["data"].dt.to_period("M")
+    meses_distintos = df_filtrado["mes"].nunique()
+    consumo_medio_mensal = total_consumo / meses_distintos if meses_distintos > 0 else 0
+    
+    # 🎯 Eficiência e outliers
+    qtd_anomalias = df_anomalia["is_anomaly"].sum()
+    percentual_anomalias = (qtd_anomalias / len(df_filtrado)) * 100 if len(df_filtrado) > 0 else 0
+    
+    # 📈 Crescimento (se tiver mais de 1 mês)
+    crescimento_mensal = 0
+    if meses_distintos >= 2:
+        consumo_meses = df_filtrado.groupby("mes")["consumo_kwh"].sum().sort_index()
+        ultimo_mes = consumo_meses.iloc[-1]
+        mes_anterior = consumo_meses.iloc[-2]
+        crescimento_mensal = ((ultimo_mes - mes_anterior) / mes_anterior) * 100 if mes_anterior > 0 else 0
 
-    col1, col2 = st.columns(2)
-
-    col1.metric("⚡ Consumo Total", f"{total_consumo:.0f} kWh")
-    col2.metric("💰 Custo Total", f"R$ {total_custo:.2f}")
-
-    st.caption(f"{len(df_filtrado)} registros encontrados")
+    # 🎨 Layout KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    
+    col1.metric("⚡ Consumo Total", f"{total_consumo:,.0f} kWh", f"📅 {meses_distintos} meses")
+    col2.metric("💰 Custo Total", f"R$ {total_custo:,.2f}", f"👥 {num_clientes} clientes")
+    col3.metric("📊 Média/Cliente", f"{consumo_medio_cliente:,.0f} kWh", f"R$ {custo_medio_cliente:,.2f}")
+    col4.metric("🎯 Preço Médio", f"R$ {preco_medio_kwh:.3f}/kWh", f"📈 {crescimento_mensal:+.1f}%")
+    
+    # 🚨 Alertas de anomalias
+    if qtd_anomalias > 0:
+        st.warning(f"⚠️ {qtd_anomalias} consumos anômalos detectados ({percentual_anomalias:.1f}% do total)")
+    
+    st.caption(f"📊 {len(df_filtrado)} registros • 📅 Período: {df_filtrado['data'].min().strftime('%d/%m/%Y')} a {df_filtrado['data'].max().strftime('%d/%m/%Y')}")
 
     st.divider()
 
@@ -362,17 +392,37 @@ if not df.empty:
     for i in insights:
         st.info(i)
 
-    # Cliente que mais aumentou consumo
-    cliente_aumento = df_filtrado.groupby("cliente")["consumo_kwh"].sum().idxmax()
-    st.info(f"Cliente com maior consumo: {cliente_aumento}")
-
-    # Cliente que mais reduziu consumo
-    cliente_reducao = df_filtrado.groupby("cliente")["consumo_kwh"].sum().idxmin()
-    st.info(f"Cliente com menor consumo: {cliente_reducao}")
-
-    # Custo médio por kWh
-    custo_medio = df_filtrado["custo"].sum() / df_filtrado["consumo_kwh"].sum()
-    st.info(f"Custo médio por kWh: R$ {custo_medio:.2f}")
+    # 🏆 Análise de Clientes Avançada
+    analise_clientes = df_filtrado.groupby("cliente").agg({
+        'consumo_kwh': ['sum', 'mean', 'std'],
+        'custo': 'sum',
+        'preco_mwh': 'mean'
+    }).round(2)
+    analise_clientes.columns = ['consumo_total', 'consumo_medio', 'consumo_std', 'custo_total', 'preco_medio']
+    
+    # 🥇 Top performers
+    top_consumidor = analise_clientes['consumo_total'].idxmax()
+    menor_consumidor = analise_clientes['consumo_total'].idxmin()
+    cliente_caro = analise_clientes['preco_medio'].idxmax()
+    cliente_barato = analise_clientes['preco_medio'].idxmin()
+    
+    # 📊 Insights de clientes
+    col_insights1, col_insights2 = st.columns(2)
+    
+    with col_insights1:
+        st.info(f"🏆 **Maior consumidor**: {top_consumidor} ({analise_clientes.loc[top_consumidor, 'consumo_total']:,.0f} kWh)")
+        st.info(f"📉 **Menor consumidor**: {menor_consumidor} ({analise_clientes.loc[menor_consumidor, 'consumo_total']:,.0f} kWh)")
+    
+    with col_insights2:
+        st.info(f"💸 **Preço mais alto**: {cliente_caro} (R$ {analise_clientes.loc[cliente_caro, 'preco_medio']:.2f}/MWh)")
+        st.info(f"💰 **Preço mais baixo**: {cliente_barato} (R$ {analise_clientes.loc[cliente_barato, 'preco_medio']:.2f}/MWh)")
+    
+    # 🎯 Eficiência energética
+    st.info(f"⚡ **Consumo médio mensal**: {consumo_medio_mensal:,.0f} kWh/mês")
+    if crescimento_mensal > 10:
+        st.warning(f"📈 **Crescimento elevado**: {crescimento_mensal:+.1f}% vs mês anterior")
+    elif crescimento_mensal < -10:
+        st.success(f"📉 **Redução significativa**: {crescimento_mensal:+.1f}% vs mês anterior")
 
     # -------------------------------
     # 📄 PDF
@@ -485,8 +535,8 @@ with col2:
 
 st.divider()
 
-# 🔹 LINHA 3 (🔥 AQUI É O QUE VOCÊ QUERIA)
-col3, col4 = st.columns([2, 1])  # heatmap maior que o pie
+# 🔹 LINHA 3 - GRÁFICOS AVANÇADOS
+col3, col4 = st.columns([2, 1])
 
 with col3:
     st.subheader("🔥 Heatmap Consumo por Cliente/Mês")
@@ -506,13 +556,14 @@ with col3:
         x="mes",
         y="cliente",
         z="consumo_kwh",
-        color_continuous_scale="Viridis"
+        color_continuous_scale="Viridis",
+        title="Intensidade de Consumo (kWh)"
     )
-
-    st.plotly_chart(fig_heatmap, use_container_width=True)
+    fig_heatmap.update_layout(height=400)
+    st.plotly_chart(fig_heatmap, width='stretch')
 
 with col4:
-    st.subheader("🔥 Participação no custo por cliente")
+    st.subheader("🎯 Distribuição de Custo")
 
     df_pie = df_filtrado.copy()
     df_pie = (
@@ -522,14 +573,291 @@ with col4:
         .reset_index()
     )
 
-    fig_pie = px.pie(df_pie, names="cliente", values="custo")
+    # Apenas top 5 para o pie chart ficar legível
+    df_pie_top = df_pie.nlargest(5, "custo")
+    outros = df_pie.iloc[5:]["custo"].sum()
+    if outros > 0:
+        df_pie_top = pd.concat([df_pie_top, pd.DataFrame({"cliente": ["Outros"], "custo": [outros]})])
+    
+    fig_pie = px.pie(
+        df_pie_top, 
+        names="cliente", 
+        values="custo",
+        hole=0.3,  # donut chart
+        color_discrete_sequence=px.colors.qualitative.Set3
+    )
+    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+    fig_pie.update_layout(height=400)
+    st.plotly_chart(fig_pie, width='stretch')
 
-    st.plotly_chart(fig_pie, use_container_width=True)
-
-
-# -------------------------------
-# 📋 TABELA
-# -------------------------------
 st.divider()
-st.subheader("📋 Dados")
-st.dataframe(df_filtrado, use_container_width=True)
+
+# 🔹 LINHA 4 - ANÁLISE AVANÇADA
+col5, col6 = st.columns([3, 2])
+
+with col5:
+    st.subheader("📊 Análise de Eficiência Energética")
+    
+    # Gráfico de dispersão: consumo vs custo
+    df_efficiency = df_filtrado.groupby("cliente").agg({
+        'consumo_kwh': 'sum',
+        'custo': 'sum',
+        'preco_mwh': 'mean'
+    }).reset_index()
+    
+    df_efficiency['custo_por_kwh'] = df_efficiency['custo'] / df_efficiency['consumo_kwh']
+    
+    fig_scatter = px.scatter(
+        df_efficiency,
+        x="consumo_kwh",
+        y="custo",
+        size="preco_mwh",
+        hover_name="cliente",
+        color="custo_por_kwh",
+        color_continuous_scale="RdYlBu_r",
+        title="Consumo vs Custo (tamanho = preço médio)"
+    )
+    fig_scatter.update_layout(height=400)
+    st.plotly_chart(fig_scatter, width='stretch')
+
+with col6:
+    st.subheader("📈 Variação Percentual")
+    
+    # Análise de variação por cliente
+    df_variacao = df_filtrado.copy()
+    df_variacao["mes"] = df_variacao["data"].dt.to_period("M")
+    
+    # Calcular variação para clientes com múltiplos meses
+    variacoes = []
+    for cliente in df_variacao["cliente"].unique():
+        dados_cliente = df_variacao[df_variacao["cliente"] == cliente]
+        dados_mes = dados_cliente.groupby("mes")["consumo_kwh"].sum().sort_index()
+        
+        if len(dados_mes) >= 2:
+            ultimo = dados_mes.iloc[-1]
+            anterior = dados_mes.iloc[-2]
+            variacao = ((ultimo - anterior) / anterior) * 100 if anterior > 0 else 0
+            variacoes.append({"cliente": cliente, "variacao": variacao, "consumo_atual": ultimo})
+    
+    if variacoes:
+        df_var = pd.DataFrame(variacoes)
+        df_var = df_var.sort_values("variacao", ascending=True)
+        
+        fig_var = px.bar(
+            df_var,
+            x="variacao",
+            y="cliente",
+            orientation="h",
+            color="variacao",
+            color_continuous_scale="RdYlGn",
+            title="Variação % vs Mês Anterior"
+        )
+        fig_var.update_layout(height=400)
+        st.plotly_chart(fig_var, width='stretch')
+    else:
+        st.info("📅 Dados insuficientes para análise de variação (precisa de múltiplos meses)")
+
+st.divider()
+
+# 🔹 LINHA 5 - DISTRIBUIÇÃO E ESTATÍSTICAS
+col7, col8 = st.columns([2, 3])
+
+with col7:
+    st.subheader("📊 Distribuição de Consumo")
+    
+    # Histograma de consumo
+    fig_hist = px.histogram(
+        df_filtrado,
+        x="consumo_kwh",
+        nbins=20,
+        title="Distribuição de Consumo (kWh)",
+        color_discrete_sequence=["#1f77b4"]
+    )
+    fig_hist.add_vline(
+        x=df_filtrado["consumo_kwh"].mean(),
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"Média: {df_filtrado['consumo_kwh'].mean():.0f} kWh"
+    )
+    fig_hist.update_layout(height=350)
+    st.plotly_chart(fig_hist, width='stretch')
+
+with col8:
+    st.subheader("🎯 Box Plot por Cliente")
+    
+    # Box plot para detectar outliers por cliente
+    top_clientes_box = df_filtrado.groupby("cliente")["consumo_kwh"].sum().nlargest(8).index
+    df_box = df_filtrado[df_filtrado["cliente"].isin(top_clientes_box)]
+    
+    fig_box = px.box(
+        df_box,
+        x="cliente",
+        y="consumo_kwh",
+        title="Distribuição de Consumo por Cliente (Top 8)",
+        color="cliente"
+    )
+    fig_box.update_layout(height=350, showlegend=False)
+    fig_box.update_xaxes(tickangle=45)
+    st.plotly_chart(fig_box, width='stretch')
+
+
+st.divider()
+
+# 🔹 LINHA 6 - INSIGHTS E BENCHMARKS
+st.subheader("🎯 Análise Comparativa e Insights")
+
+# 📊 Tabela de benchmark por cliente
+df_benchmark = df_filtrado.groupby("cliente").agg({
+    'consumo_kwh': ['sum', 'mean', 'count'],
+    'custo': ['sum', 'mean'],
+    'preco_mwh': 'mean'
+}).round(2)
+
+df_benchmark.columns = ['consumo_total', 'consumo_medio', 'num_registros', 'custo_total', 'custo_medio', 'preco_medio']
+df_benchmark['custo_por_kwh'] = df_benchmark['custo_total'] / df_benchmark['consumo_total']
+
+# 🏆 Rankings
+df_benchmark['rank_consumo'] = df_benchmark['consumo_total'].rank(ascending=False)
+df_benchmark['rank_custo'] = df_benchmark['custo_total'].rank(ascending=False)
+df_benchmark['rank_eficiencia'] = df_benchmark['custo_por_kwh'].rank()  # menor = melhor
+
+# 📈 Percentis
+percentil_75_consumo = df_benchmark['consumo_total'].quantile(0.75)
+percentil_25_consumo = df_benchmark['consumo_total'].quantile(0.25)
+mediana_consumo = df_benchmark['consumo_total'].median()
+
+# 🎨 Layout insights
+col_insight1, col_insight2, col_insight3 = st.columns(3)
+
+with col_insight1:
+    st.metric("📊 Consumo Mediano", f"{mediana_consumo:,.0f} kWh")
+    st.caption(f"P75: {percentil_75_consumo:,.0f} kWh | P25: {percentil_25_consumo:,.0f} kWh")
+
+with col_insight2:
+    clientes_acima_media = df_benchmark[df_benchmark['consumo_total'] > mediana_consumo]
+    st.metric("📈 Acima da Mediana", f"{len(clientes_acima_media)} clientes")
+    st.caption(f"{(len(clientes_acima_media)/len(df_benchmark)*100):.1f}% do total")
+
+with col_insight3:
+    melhor_eficiencia = df_benchmark['custo_por_kwh'].min()
+    pior_eficiencia = df_benchmark['custo_por_kwh'].max()
+    st.metric("⚡ Melhor Custo/kWh", f"R$ {melhor_eficiencia:.3f}")
+    st.caption(f"vs Pior: R$ {pior_eficiencia:.3f}")
+
+# 📋 Tabela de benchmark detalhada
+col_tabela1, col_tabela2 = st.columns([2, 1])
+
+with col_tabela1:
+    st.subheader("📊 Benchmark de Clientes")
+    
+    # Formatar tabela para exibição
+    df_display = df_benchmark.copy()
+    df_display = df_display.sort_values('consumo_total', ascending=False)
+    df_display['consumo_total'] = df_display['consumo_total'].apply(lambda x: f"{x:,.0f}")
+    df_display['custo_total'] = df_display['custo_total'].apply(lambda x: f"R$ {x:,.2f}")
+    df_display['consumo_medio'] = df_display['consumo_medio'].apply(lambda x: f"{x:,.0f}")
+    df_display['custo_medio'] = df_display['custo_medio'].apply(lambda x: f"R$ {x:,.2f}")
+    df_display['custo_por_kwh'] = df_display['custo_por_kwh'].apply(lambda x: f"R$ {x:.3f}")
+    df_display['preco_medio'] = df_display['preco_medio'].apply(lambda x: f"R$ {x:.2f}")
+    
+    # Adicionar badges de performance
+    def get_performance_badge(rank, total):
+        percentile = (rank / total) * 100
+        if percentile <= 20:
+            return "🥇 Top 20%"
+        elif percentile <= 40:
+            return "🥈 Top 40%"
+        elif percentile <= 60:
+            return "🥉 Médio"
+        else:
+            return "⚠️ Abaixo"
+    
+    df_display['performance'] = df_display.apply(
+        lambda row: get_performance_badge(row['rank_consumo'], len(df_benchmark)), axis=1
+    )
+    
+    st.dataframe(df_display.drop(['rank_consumo', 'rank_custo', 'rank_eficiencia'], axis=1), width='stretch')
+
+with col_tabela2:
+    st.subheader("🎯 Recomendações")
+    
+    recomendacoes = []
+    
+    # Clientes com alto custo por kWh
+    clientes_caros = df_benchmark[df_benchmark['custo_por_kwh'] > df_benchmark['custo_por_kwh'].quantile(0.75)]
+    if not clientes_caros.empty:
+        recomendacoes.append(f"⚠️ {len(clientes_caros)} clientes com custo acima do P75")
+    
+    # Clientes com baixo consumo (possível churn)
+    clientes_baixo = df_benchmark[df_benchmark['consumo_total'] < df_benchmark['consumo_total'].quantile(0.25)]
+    if not clientes_baixo.empty:
+        recomendacoes.append(f"📉 {len(clientes_baixo)} clientes com consumo baixo (atenção)")
+    
+    # Clientes com alta variação (possíveis anomalias)
+    if 'variacoes' in locals() and len(variacoes) > 0:
+        alta_variacao = [v for v in variacoes if abs(v['variacao']) > 30]
+        if alta_variacao:
+            recomendacoes.append(f"📊 {len(alta_variacao)} clientes com variação >30%")
+    
+    # Oportunidade de otimização
+    economia_potencial = (df_benchmark['custo_por_kwh'].max() - df_benchmark['custo_por_kwh'].min()) * df_benchmark['consumo_total'].sum()
+    if economia_potencial > 0:
+        recomendacoes.append(f"💰 Economia potencial: R$ {economia_potencial:,.2f}")
+    
+    for rec in recomendacoes:
+        st.info(rec)
+    
+    # 🎯 Meta de eficiência
+    st.subheader("🎯 Metas Sugeridas")
+    
+    meta_consumo = mediana_consumo * 0.9  # 10% abaixo da mediana
+    meta_custo = df_benchmark['custo_por_kwh'].quantile(0.25)  # P25
+    
+    st.metric("📊 Meta de Consumo", f"{meta_consumo:,.0f} kWh", "-10% vs mediana")
+    st.metric("💰 Meta de Custo/kWh", f"R$ {meta_custo:.3f}", "P25 atual")
+
+st.divider()
+
+# -------------------------------
+# 📋 TABELA DE DADOS
+# -------------------------------
+st.subheader("📋 Dados Detalhados")
+
+# 📊 Estatísticas descritivas
+with st.expander("📈 Estatísticas Descritivas"):
+    stats_cols = st.columns(3)
+    
+    with stats_cols[0]:
+        st.write("**Consumo (kWh)**")
+        st.write(f"Média: {df_filtrado['consumo_kwh'].mean():.2f}")
+        st.write(f"Mediana: {df_filtrado['consumo_kwh'].median():.2f}")
+        st.write(f"Desvio Padrão: {df_filtrado['consumo_kwh'].std():.2f}")
+        st.write(f"Mínimo: {df_filtrado['consumo_kwh'].min():.2f}")
+        st.write(f"Máximo: {df_filtrado['consumo_kwh'].max():.2f}")
+    
+    with stats_cols[1]:
+        st.write("**Custo (R$)**")
+        st.write(f"Média: {df_filtrado['custo'].mean():.2f}")
+        st.write(f"Mediana: {df_filtrado['custo'].median():.2f}")
+        st.write(f"Desvio Padrão: {df_filtrado['custo'].std():.2f}")
+        st.write(f"Mínimo: {df_filtrado['custo'].min():.2f}")
+        st.write(f"Máximo: {df_filtrado['custo'].max():.2f}")
+    
+    with stats_cols[2]:
+        st.write("**Preço (R$/MWh)**")
+        st.write(f"Média: {df_filtrado['preco_mwh'].mean():.2f}")
+        st.write(f"Mediana: {df_filtrado['preco_mwh'].median():.2f}")
+        st.write(f"Desvio Padrão: {df_filtrado['preco_mwh'].std():.2f}")
+        st.write(f"Mínimo: {df_filtrado['preco_mwh'].min():.2f}")
+        st.write(f"Máximo: {df_filtrado['preco_mwh'].max():.2f}")
+
+# 📋 Tabela de dados com formatação
+st.dataframe(df_filtrado.style.format({
+        'consumo_kwh': '{:,.2f}',
+        'custo': 'R$ {:,.2f}',
+        'preco_mwh': 'R$ {:,.2f}',
+        'data': lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else ''
+    }),
+    width='stretch',
+    height=300
+)
