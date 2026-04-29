@@ -457,7 +457,7 @@ with col1:
     )
 
     fig_bar = px.bar(consumo_cliente, x="cliente", y="consumo_kwh")
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, width='stretch')
 
 with col2:
     st.subheader("🏆 Top Clientes")
@@ -471,7 +471,7 @@ with col2:
         orientation="h"
     )
 
-    st.plotly_chart(fig_top, use_container_width=True)
+    st.plotly_chart(fig_top, width='stretch')
 
 st.divider()
 
@@ -515,7 +515,7 @@ with col1:
         arrowhead=1
     )
 
-    st.plotly_chart(fig_line, use_container_width=True)
+    st.plotly_chart(fig_line, width='stretch')
 
 with col2:
     st.subheader("💰 Custo por mês")
@@ -531,7 +531,7 @@ with col2:
     )
 
     fig_custo = px.line(df_custo, x="mes", y="custo", markers=True)
-    st.plotly_chart(fig_custo, use_container_width=True)
+    st.plotly_chart(fig_custo, width='stretch')
 
 st.divider()
 
