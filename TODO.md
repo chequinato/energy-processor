@@ -1,33 +1,6 @@
-🧠 4. Detecção de anomalia (🔥 diferencial)
-
-Tipo:
-
-“esse cliente consumiu MUITO mais que o normal”
-
-Simples de fazer:
-
-média histórica
-desvio padrão
-flag de anomalia
-
-🧾 5. Exportar relatório
-
-Botão:
-
-baixar CSV
-ou PDF com gráfico
-
-☁️ 6. Deploy na nuvem
-
-Pode usar:
-
-AWS
-ou Render
-ou Railway
-
-🤖 7. Insights automáticos
-
-Tipo:
-
-“Seu consumo aumentou 18% esse mês”
-“Cliente X é responsável por 40% do custo”
+  
+- Colocar novos gráficos no export pdf 
+- Melhorar o layout do dashboard
+- Verificar o porque o gráfico de variação percentual não aparecem dados: 📈 Variação Percentual
+📅
+Dados insuficientes para análise de variação (precisa de múltiplos meses)

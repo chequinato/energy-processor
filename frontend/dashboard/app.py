@@ -124,6 +124,105 @@ def gerar_pdf(df):
     for cliente, consumo in top_clientes.items():
         elementos.append(Paragraph(f"{cliente}: {consumo:.0f} kWh", styles["Normal"]))
 
+    elementos.append(Spacer(1, 20))
+
+    # -------------------------------
+    # 🎯 DISTRIBUIÇÃO DE CUSTO (NOVO 🔥)
+    # -------------------------------
+    elementos.append(Paragraph("🎯 Distribuição de Custo", styles["Heading2"]))
+    elementos.append(Spacer(1, 10))
+
+    df_pie = df.groupby("cliente")["custo"].sum().reset_index()
+    df_pie_top = df_pie.sort_values("custo", ascending=False).head(5)
+    outros = df_pie.iloc[5:]["custo"].sum()
+    if outros > 0:
+        df_pie_top = pd.concat([df_pie_top, pd.DataFrame([{"cliente": "Outros", "custo": outros}])])
+
+    fig_pie = px.pie(df_pie_top, names="cliente", values="custo", hole=0.3)
+    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+
+    img4 = BytesIO()
+    fig_pie.write_image(img4, format="png")
+    img4.seek(0)
+
+    elementos.append(Image(img4, width=450, height=260))
+    elementos.append(Spacer(1, 20))
+
+    # -------------------------------
+    # 🔥 HEATMAP CONSUMO (NOVO 🔥)
+    # -------------------------------
+    elementos.append(Paragraph("🔥 Intensidade de Consumo por Cliente/Mês", styles["Heading2"]))
+    elementos.append(Spacer(1, 10))
+
+    df_heatmap = df.copy()
+    df_heatmap["mes"] = df_heatmap["data"].dt.to_period("M").dt.to_timestamp()
+
+    fig_heatmap = px.density_heatmap(
+        df_heatmap,
+        x="mes",
+        y="cliente",
+        z="consumo_kwh",
+        color_continuous_scale="Viridis"
+    )
+
+    img5 = BytesIO()
+    fig_heatmap.write_image(img5, format="png")
+    img5.seek(0)
+
+    elementos.append(Image(img5, width=450, height=260))
+    elementos.append(Spacer(1, 20))
+
+    # -------------------------------
+    # 📊 ANÁLISE DE EFICIÊNCIA (NOVO 🔥)
+    # -------------------------------
+    elementos.append(Paragraph("📊 Eficiência Energética", styles["Heading2"]))
+    elementos.append(Spacer(1, 10))
+
+    df_efficiency = df.copy()
+    df_efficiency["custo_por_kwh"] = df_efficiency["custo"] / df_efficiency["consumo_kwh"]
+    
+    fig_scatter = px.scatter(
+        df_efficiency,
+        x="consumo_kwh",
+        y="custo",
+        size="preco_mwh",
+        hover_name="cliente",
+        color="custo_por_kwh",
+        color_continuous_scale="RdYlBu_r",
+        title="Consumo vs Custo (tamanho = preço médio)"
+    )
+
+    img6 = BytesIO()
+    fig_scatter.write_image(img6, format="png")
+    img6.seek(0)
+
+    elementos.append(Image(img6, width=450, height=260))
+    elementos.append(Spacer(1, 20))
+
+    # -------------------------------
+    # 📈 MÉTRICAS E INSIGHTS (NOVO 🔥)
+    # -------------------------------
+    elementos.append(Paragraph("📈 Métricas e Insights", styles["Heading2"]))
+    elementos.append(Spacer(1, 10))
+
+    # Cálculos de métricas
+    num_clientes = df["cliente"].nunique()
+    consumo_medio_cliente = total_consumo / num_clientes
+    preco_medio_kwh = total_custo / total_consumo
+    
+    elementos.append(Paragraph(f"<b>Clientes únicos:</b> {num_clientes}", styles["Normal"]))
+    elementos.append(Paragraph(f"<b>Consumo médio/cliente:</b> {consumo_medio_cliente:.0f} kWh", styles["Normal"]))
+    elementos.append(Paragraph(f"<b>Preço médio/kWh:</b> R$ {preco_medio_kwh:.3f}", styles["Normal"]))
+    
+    # Melhor e pior eficiência
+    df_efficiency["custo_por_kwh"] = df["custo"] / df["consumo_kwh"]
+    melhor_cliente = df_efficiency.loc[df_efficiency["custo_por_kwh"].idxmin(), "cliente"]
+    pior_cliente = df_efficiency.loc[df_efficiency["custo_por_kwh"].idxmax(), "cliente"]
+    
+    elementos.append(Spacer(1, 10))
+    elementos.append(Paragraph(f"<b>Melhor eficiência:</b> {melhor_cliente}", styles["Normal"]))
+    elementos.append(Paragraph(f"<b>Pior eficiência:</b> {pior_cliente}", styles["Normal"]))
+
     # -------------------------------
     # FINALIZA
     # -------------------------------
@@ -141,7 +240,9 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("⚡ Energy Dashboard")
+st.title("⚡ Energy Data Processor")
+st.markdown("---")
+st.caption("📊 Dashboard Avançado de Análise de Consumo Energético")
 
 # -------------------------------
 # 🔎 SIDEBAR (UPLOAD + FILTROS)
@@ -533,7 +634,9 @@ with col2:
     fig_custo = px.line(df_custo, x="mes", y="custo", markers=True)
     st.plotly_chart(fig_custo, width='stretch')
 
-st.divider()
+st.markdown("---")
+st.markdown("## 🔥 Análises Avançadas")
+st.markdown("---")
 
 # 🔹 LINHA 3 - GRÁFICOS AVANÇADOS
 col3, col4 = st.columns([2, 1])
@@ -639,6 +742,11 @@ with col6:
             variacao = ((ultimo - anterior) / anterior) * 100 if anterior > 0 else 0
             variacoes.append({"cliente": cliente, "variacao": variacao, "consumo_atual": ultimo})
     
+    # Debug: mostrar informações sobre os dados
+    st.write(f"📊 Clientes únicos: {df_variacao['cliente'].nunique()}")
+    st.write(f"📅 Meses distintos: {df_variacao['mes'].nunique()}")
+    st.write(f"📈 Variações calculadas: {len(variacoes)}")
+    
     if variacoes:
         df_var = pd.DataFrame(variacoes)
         df_var = df_var.sort_values("variacao", ascending=True)
@@ -654,8 +762,17 @@ with col6:
         )
         fig_var.update_layout(height=400)
         st.plotly_chart(fig_var, width='stretch')
+        
+        # Mostrar dados da variação
+        st.write("**Dados de Variação:**")
+        st.dataframe(df_var, width='stretch')
     else:
         st.info("📅 Dados insuficientes para análise de variação (precisa de múltiplos meses)")
+        
+        # Mostrar dados disponíveis para debug
+        st.write("**Dados disponíveis por cliente:**")
+        cliente_meses = df_variacao.groupby("cliente")["mes"].nunique().sort_values(ascending=False)
+        st.dataframe(cliente_meses.reset_index(), width='stretch')
 
 st.divider()
 
@@ -819,9 +936,10 @@ with col_tabela2:
 st.divider()
 
 # -------------------------------
-# 📋 TABELA DE DADOS
+# � KPIS PRINCIPAIS
 # -------------------------------
-st.subheader("📋 Dados Detalhados")
+st.markdown("## � Métricas Principais")
+st.markdown("---")
 
 # 📊 Estatísticas descritivas
 with st.expander("📈 Estatísticas Descritivas"):
