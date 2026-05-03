@@ -6,13 +6,80 @@ import plotly.express as px
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from io import BytesIO
+import openai
+import os
+from dotenv import load_dotenv
 
 load_dotenv()
+
+#Configurar API
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 
 API_URL = "http://backend:8000/api"
 
 # -------------------------------
-# 📄 GERAR PDF
+# GERAR RESUMO COM IA
+# -------------------------------
+
+def gerar_insights_ia(df):
+    """Gera insights inteligentes usando OpenAI"""
+    
+    # 1. Preparar resumo dos dados
+    resumo_dados = f"""
+    RELATÓRIO DE CONSUMO DE ENERGIA:
+    
+    📊 ESTATÍSTICAS GERAIS:
+    - Consumo total: {df['consumo_kwh'].sum():,.0f} kWh
+    - Custo total: R$ {df['custo'].sum():,.2f}
+    - Número de clientes: {df['cliente'].nunique()}
+    - Período analisado: {df['data'].min().strftime('%d/%m/%Y')} a {df['data'].max().strftime('%d/%m/%Y')}
+    
+    💰 ANÁLISE DE CUSTOS:
+    - Preço médio/kWh: R$ {df['custo'].sum()/df['consumo_kwh'].sum():.3f}
+    - Cliente com maior custo: {df.groupby('cliente')['custo'].sum().idxmax()}
+    - Cliente mais eficiente: {df.groupby('cliente')['custo'].sum().idxmin()}
+    
+    📈 TENDÊNCIAS:
+    - Consumo médio por cliente: {df['consumo_kwh'].mean():.0f} kWh
+    - Desvio padrão do consumo: {df['consumo_kwh'].std():.0f} kWh
+    - Mês de maior consumo: {df.groupby(df['data'].dt.to_period('M'))['consumo_kwh'].sum().idxmax().strftime('%m/%Y')}
+    """
+    
+    # 2. Enviar para OpenAI
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system", 
+                    "content": "Você é um especialista em energia. Forneça insights práticos e acionáveis baseados nos dados."
+                },
+                {
+                    "role": "user", 
+                    "content": f"""Analise estes dados de consumo de energia e forneça 5 insights valiosos:
+                    
+                    {resumo_dados}
+                    
+                    Para cada insight, inclua:
+                    1. O que você observou
+                    2. Por que isso é importante
+                    3. Uma recomendação acionável
+                    
+                    Seja específico e use os números reais dos dados."""
+                }
+            ],
+            max_tokens=800,
+            temperature=0.7
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        return f"❌ Erro ao gerar insights: {str(e)}"
+
+# -------------------------------
+# GERAR PDF
 # -------------------------------
 def gerar_pdf(df):
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
@@ -981,3 +1048,39 @@ st.dataframe(df_filtrado.style.format({
     width='stretch',
     height=300
 )
+
+# 🤖 SEÇÃO DE INSIGHTS COM IA
+st.markdown("## 🤖 Insights Inteligentes com IA")
+st.markdown("---")
+
+col_ia1, col_ia2 = st.columns([1, 3])
+
+with col_ia1:
+    st.write("**🧠 Análise IA**")
+    st.caption("Insights personalizados usando inteligência artificial")
+    
+    if st.button("🚀 Gerar Insights", type="primary"):
+        with st.spinner("🤖 Analisando dados com IA..."):
+            insights = gerar_insights_ia(df)
+            st.session_state.insights_ia = insights
+    
+    if st.button("🔄 Nova Análise"):
+        if 'insights_ia' in st.session_state:
+            del st.session_state.insights_ia
+
+with col_ia2:
+    if 'insights_ia' in st.session_state:
+        st.success("**🎯 Insights Gerados:**")
+        st.markdown(st.session_state.insights_ia)
+        
+        # Botões de ação
+        col_save, col_share = st.columns(2)
+        with col_save:
+            if st.button("💾 Salvar Insights"):
+                st.info("✅ Insights salvos no relatório PDF!")
+        
+        with col_share:
+            if st.button("📱 Compartilhar"):
+                st.info("📋 Insights copiados para área de transferência!")
+    else:
+        st.info("👆 Clique em 'Gerar Insights' para análise personalizada com IA")

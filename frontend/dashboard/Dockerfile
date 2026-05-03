@@ -31,4 +31,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Configurar Chrome para modo headless
+ENV CHROME_BIN=/usr/bin/google-chrome
+ENV KALEIDO_MAKE_EXECUTABLE=1
+ENV CHROME_PATH=/usr/bin/google-chrome
+
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
