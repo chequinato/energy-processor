@@ -7,6 +7,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from io import BytesIO
 
+load_dotenv()
+
 API_URL = "http://backend:8000/api"
 
 # -------------------------------
