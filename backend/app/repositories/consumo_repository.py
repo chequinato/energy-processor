@@ -1,58 +1,52 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-import pandas as pd
 from datetime import datetime
 
-from app.models.consumo import Consumo
+import pandas as pd
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.models.cliente import Cliente
-from app.repositories.cliente_repository import get_or_create_cliente
+from app.models.consumo import Consumo
+from app.repositories.cliente_repository import get_or_create_clientes
+
+
+def _to_float(value):
+    return float(value) if pd.notna(value) else 0.0
+
+
+def _to_datetime(value):
+    if value is None or pd.isna(value):
+        return None
+
+    parsed = pd.to_datetime(value, errors="coerce")
+    # salva como datetime puro (sem string)
+    return None if pd.isna(parsed) else parsed.to_pydatetime()
 
 
 # -----------------------------------
 # 💾 SALVAR CONSUMOS (UPLOAD)
 # -----------------------------------
-def save_consumos(db: Session, df: pd.DataFrame):
+def save_consumos(db: Session, df: pd.DataFrame, upload_id: int | None = None, commit: bool = True):
     try:
-        objetos = []
+        clientes = get_or_create_clientes(db, df["cliente"].astype(str).str.strip())
+        tem_data = "data" in df.columns
 
-        for _, row in df.iterrows():
-
-            cliente = get_or_create_cliente(db, row["cliente"])
-
-            # -----------------------------
-            # normaliza números (proteção)
-            # -----------------------------
-            consumo_kwh = float(row["consumo_kwh"]) if pd.notna(row["consumo_kwh"]) else 0.0
-            preco_mwh = float(row["preco_mwh"]) if pd.notna(row["preco_mwh"]) else 0.0
-            custo = float(row["custo"]) if pd.notna(row["custo"]) else 0.0
-
-            # -----------------------------
-            # 🔥 FIX DEFINITIVO DA DATA
-            # -----------------------------
-            data = None
-            if "data" in row and pd.notna(row["data"]):
-
-                parsed = pd.to_datetime(row["data"], errors="coerce")
-
-                if not pd.isna(parsed):
-                    # IMPORTANTÍSSIMO:
-                    # salva como datetime puro (sem string)
-                    data = parsed.to_pydatetime()
-                else:
-                    data = None
-
-            objetos.append(
-                Consumo(
-                    cliente_id=cliente.id,
-                    consumo_kwh=consumo_kwh,
-                    preco_mwh=preco_mwh,
-                    custo=custo,
-                    data=data
-                )
+        objetos = [
+            Consumo(
+                cliente_id=clientes[str(row["cliente"]).strip()].id,
+                upload_id=upload_id,
+                consumo_kwh=_to_float(row["consumo_kwh"]),
+                preco_mwh=_to_float(row["preco_mwh"]),
+                custo=_to_float(row["custo"]),
+                data=_to_datetime(row["data"]) if tem_data else None,
             )
+            for row in df.to_dict("records")
+        ]
 
         db.add_all(objetos)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
 
         return {
             "status": "success",
@@ -61,7 +55,15 @@ def save_consumos(db: Session, df: pd.DataFrame):
 
     except Exception as e:
         db.rollback()
-        raise Exception(f"Erro ao salvar consumos: {str(e)}")
+        raise Exception(f"Erro ao salvar consumos: {str(e)}") from e
+
+
+def delete_consumos_by_upload(db: Session, upload_id: int) -> int:
+    return (
+        db.query(Consumo)
+        .filter(Consumo.upload_id == upload_id)
+        .delete(synchronize_session=False)
+    )
 
 
 # -----------------------------------
@@ -94,12 +96,20 @@ def get_relatorios(db: Session):
 # -----------------------------------
 # 📦 LISTAGEM DETALHADA
 # -----------------------------------
-def get_consumos(db: Session):
-    dados = (
-        db.query(Consumo, Cliente)
-        .join(Cliente, Consumo.cliente_id == Cliente.id)
-        .all()
-    )
+def get_consumos(
+    db: Session,
+    cliente: str | None = None,
+    data_inicio: datetime | None = None,
+    data_fim: datetime | None = None,
+):
+    query = db.query(Consumo, Cliente).join(Cliente, Consumo.cliente_id == Cliente.id)
+
+    if cliente:
+        query = query.filter(Cliente.nome == cliente)
+    if data_inicio:
+        query = query.filter(Consumo.data >= data_inicio)
+    if data_fim:
+        query = query.filter(Consumo.data <= data_fim)
 
     return [
         {
@@ -109,5 +119,5 @@ def get_consumos(db: Session):
             "custo": consumo.custo,
             "data": consumo.data.isoformat() if consumo.data else None
         }
-        for consumo, cliente in dados
+        for consumo, cliente in query.order_by(Consumo.data).all()
     ]

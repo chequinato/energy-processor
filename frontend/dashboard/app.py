@@ -16,7 +16,8 @@ load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
-API_URL = "http://backend:8000/api"
+API_URL = os.getenv("API_URL", "http://backend:8000/api")
+REQUEST_TIMEOUT = 30
 
 # -------------------------------
 # GERAR RESUMO COM IA
@@ -329,13 +330,19 @@ with st.sidebar:
             with st.spinner("Processando..."):
                 response = requests.post(
                     f"{API_URL}/upload",
-                    files={"file": (uploaded_file.name, uploaded_file, uploaded_file.type)}
+                    files={"file": (uploaded_file.name, uploaded_file, uploaded_file.type)},
+                    timeout=REQUEST_TIMEOUT
                 )
 
             if response.ok:
                 st.success("Processado com sucesso!")
+                st.cache_data.clear()
             else:
-                st.error("Erro ao enviar arquivo")
+                try:
+                    detalhe = response.json().get("detail", "")
+                except ValueError:
+                    detalhe = ""
+                st.error(f"Erro ao enviar arquivo: {detalhe}" if detalhe else "Erro ao enviar arquivo")
 
     st.divider()
 
@@ -356,7 +363,7 @@ st.header("📁 Histórico de Uploads")
 
 @st.cache_data
 def get_uploads():
-    response = requests.get(f"{API_URL}/uploads")
+    response = requests.get(f"{API_URL}/uploads", timeout=REQUEST_TIMEOUT)
     if response.ok:
         return response.json()
     return []
@@ -373,7 +380,7 @@ if uploads:
 
         with col2:
             if st.button("🗑️", key=f"del_{u['id']}"):
-                requests.delete(f"{API_URL}/uploads/{u['id']}")
+                requests.delete(f"{API_URL}/uploads/{u['id']}", timeout=REQUEST_TIMEOUT)
                 st.cache_data.clear()
                 st.rerun()
 else:
@@ -385,7 +392,7 @@ else:
 # -------------------------------
 @st.cache_data
 def get_data():
-    response = requests.get(f"{API_URL}/consumos")
+    response = requests.get(f"{API_URL}/consumos", timeout=REQUEST_TIMEOUT)
     if response.ok:
         return pd.DataFrame(response.json())
     return pd.DataFrame()
